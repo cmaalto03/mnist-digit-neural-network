@@ -1,10 +1,11 @@
 #pragma once
 
-#include <vector>
-
-using namespace std;
+#include <Eigen/Dense>
 
 struct TrainingInput {
-    vector<double> image_data;
-    vector<double> labelOneHotEncoding;
+    Eigen::VectorXd input;
+    Eigen::VectorXd label;
+
+    TrainingInput()
+        : input(784), label(10) {}
 };

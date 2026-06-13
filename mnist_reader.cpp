@@ -1,7 +1,8 @@
 #include <fstream>
 #include <iostream>
 #include <cstdint>
-#include "utils.hpp"
+#include <Eigen/Dense>
+
 #include "TrainingInput.hpp"
 
 using namespace std;
@@ -14,7 +15,14 @@ uint32_t swapEndian(uint32_t val) {
            ((val << 24) & 0xff000000);
 }
 
-void readMnistLabels(const string& filename, vector<TrainingInput>& TrainingData) {
+Eigen::VectorXd digitToOneHotEncoding(int input) {
+    Eigen::VectorXd oneHotEncoding = Eigen::VectorXd::Zero(10);
+    oneHotEncoding(input) = 1.0f;
+    return oneHotEncoding;
+
+}
+
+void readMnistLabels(const string& filename, vector<TrainingInput>& trainingData) {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file " << filename << std::endl;
@@ -29,12 +37,12 @@ void readMnistLabels(const string& filename, vector<TrainingInput>& TrainingData
 
     numberOfLabels = swapEndian(numberOfLabels);
 
-    TrainingData.resize(numberOfLabels);
+    trainingData.resize(numberOfLabels);
 
     for (size_t i = 0; i < numberOfLabels; ++i) {
         uint8_t rawLabel = 0;
         file.read(reinterpret_cast<char*>(&rawLabel), sizeof(rawLabel));
-        TrainingData[i].labelOneHotEncoding = digitToOneHotEncoding(static_cast<int>(rawLabel));
+        trainingData[i].label = digitToOneHotEncoding(static_cast<int>(rawLabel));
     }
 }
 
@@ -62,17 +70,18 @@ void readMnistImages(const string& filename, vector<TrainingInput>& trainingData
 
     size_t imageSize = nRows * nCols;
 
+    
     std::vector<uint8_t> buff(imageSize);
 
     for (size_t i = 0; i < numberOfImages; ++i) {
         file.read(reinterpret_cast<char*>(buff.data()), imageSize);
 
-        trainingData[i].image_data.resize(imageSize);
+        trainingData[i].input.resize(imageSize);
 
          for (size_t j = 0; j < imageSize; j++) {
-            float floatDig = static_cast<float>(buff[j]) / 256.0;
+            float floatDig = static_cast<float>(buff[j]) / 255.0;
 
-            trainingData[i].image_data[j] = floatDig;
+            trainingData[i].input(j) = floatDig;
          }
 
     }

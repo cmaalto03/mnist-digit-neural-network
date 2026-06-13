@@ -1,7 +1,7 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra
+CXXFLAGS = -std=c++17 -I/opt/homebrew/include/eigen3 -Wall -O2 	# where u installed eigen
 TARGET = main
-SRCS = main.cpp Network.cpp Layer.cpp mnist_reader.cpp
+SRCS = main.cpp mnist_reader.cpp
 OBJS = $(SRCS:.cpp=.o)
 
 all: $(TARGET)
