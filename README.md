@@ -29,7 +29,7 @@ $ ./main
 
 - I would like to further clean up the code a bit
 
-## Training code
+## Training Code
 
 ```cpp
     Network n({784, 15, 10}, LEARNING_RATE);
