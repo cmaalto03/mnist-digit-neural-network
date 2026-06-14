@@ -29,8 +29,6 @@ $ ./main
 
 - I would like to further clean up the code a bit
 
-## Running Existing Model Code
-
 ## Training code
 
 ```cpp
@@ -46,6 +44,8 @@ $ ./main
         cout << "EPOCH " << i << " TOTAL CORRECT: " << n.doEpoch(trainingData) << endl;
     }
 ```
+
+## Running Existing Model Code
 
 **_By default, pre-existing model (trained to 95% recognition from 30 eopochs) is used.
 You can train your own model if you would like with the following code:_**
