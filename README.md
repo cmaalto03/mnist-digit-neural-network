@@ -29,18 +29,34 @@ $ ./main
 
 - I would like to further clean up the code a bit
 
+## Running Existing Model Code
+
 ## Training code
 
-**_By default, pre-existing model (trained to 95% recognition) is used. You
-can train your own model if you would like with the following code:_**
+```cpp
+    Network n({784, 15, 10}, LEARNING_RATE);
+    vector<TrainingInput> trainingData;
+
+    readMnistLabels("data/train-labels-idx1-ubyte", trainingData);
+    readMnistImages("data/train-images-idx3-ubyte", trainingData);
+
+    size_t num_epochs = 30;
+
+    for (size_t i = 0; i < num_epochs; i++) {
+        cout << "EPOCH " << i << " TOTAL CORRECT: " << n.doEpoch(trainingData) << endl;
+    }
+```
+
+**_By default, pre-existing model (trained to 95% recognition from 30 eopochs) is used.
+You can train your own model if you would like with the following code:_**
 
 ```cpp
-readMnistLabels("data/t10k-labels.idx1-ubyte", testingData);
-readMnistImages("data/t10k-images.idx3-ubyte", testingData);
+    vector<TrainingInput> testingData;
 
-size_t num_epochs = 30;
+    readMnistLabels("data/t10k-labels.idx1-ubyte", testingData);
+    readMnistImages("data/t10k-images.idx3-ubyte", testingData);
 
-for (size_t i = 0; i < num_epochs; i++) {
-    cout << "EPOCH " << i << " COST: " << n.doEpoch(trainingData) << endl;
-}
+    cout << n.testAgainstData(testingData) << "/10000 correct" << endl;
+
+    n.saveToFile("model");
 ```
