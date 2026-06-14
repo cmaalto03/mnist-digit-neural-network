@@ -9,7 +9,7 @@ using mini-batches of 20, updating weights and biases via gradient descent after
 
 ## Requirements
 
-- Eigen libarary C++
+- Eigen libarary (for linear algebra)
   - For mac, install with homebrew
 - g++ c++ version 17
 
@@ -19,6 +19,15 @@ using mini-batches of 20, updating weights and biases via gradient descent after
 $ make
 $ ./main
 ```
+
+## TODO
+
+- I would like to not have the layers hardcoded to just 3 layers in Network so I could add as many hidden
+  layers as I would like.
+
+- I would like to add more activation functions (besides sigmoid)
+
+- I would like to further clean up the code a bit
 
 ## Training code
 
