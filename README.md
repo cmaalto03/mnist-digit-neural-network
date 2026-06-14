@@ -1,29 +1,37 @@
-WIP:
+# MNIST Digit Classification Neural Network
 
-Neccesary:
-Eignen
-install on mac w brew
+## About
 
-Implimenting the neural network as described in chapter's 1 and 2 of http://neuralnetworksanddeeplearning.com/
+This project implements a neural network trained on MNIST digit data to classify handwritten
+digits. The network consists of 3 layers, uses a quadratic cost function, and uses the sigmoid
+function for individual neurons to calculate activations. The network processes the 60,000 images
+using mini-batches of 20, updating weights and biases via gradient descent after each batch.
 
-/\*
+## Requirements
 
-list of three Layers
+- Eigen libarary C++
+  - For mac, install with homebrew
+- g++ c++ version 17
 
-each Layer past input contains
--matrix of weights - rows = # rneurons current layer, columns = # nueorns prevopus layer
+## To Run
 
-- vector of biases
-  - rows neurons current
+```bash
+$ make
+$ ./main
+```
 
-each matrix conssits of
-// input
-// hidden
-// output
-v
-\*/
-// we are going to choose 20 random
-// and then get a gradient for the average of them by calling backprop each time
-// we then will call gradient descent
-// we will do this for ALL of the images and when we reach the end that is the
-// end of epoch 1
+## Training code
+
+**_By default, pre-existing model (trained to 95% recognition) is used. You
+can train your own model if you would like with the following code:_**
+
+```cpp
+readMnistLabels("data/t10k-labels.idx1-ubyte", testingData);
+readMnistImages("data/t10k-images.idx3-ubyte", testingData);
+
+size_t num_epochs = 30;
+
+for (size_t i = 0; i < num_epochs; i++) {
+    cout << "EPOCH " << i << " COST: " << n.doEpoch(trainingData) << endl;
+}
+```

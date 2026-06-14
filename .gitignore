@@ -1,2 +1,4 @@
 *.o
 .vscode/
+.clang-format
+main

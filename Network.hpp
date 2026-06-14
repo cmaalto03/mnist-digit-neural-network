@@ -21,6 +21,10 @@ class Network {
     int testAgainstData(const vector<TrainingInput>&);
 
     void printValues();
+    void saveToFile(const std::string& filename);
+    void loadFromFile(const std::string& filename);
+
+
 
 
   private:

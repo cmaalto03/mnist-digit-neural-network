@@ -1,10 +1,12 @@
 #include "Network.hpp"
 #include "Layer.hpp"
 #include "utils.hpp"
+#include <fstream>
 #include <iostream>
 #include <vector>
 
 using std::vector;
+using std::string;
 
 Network::Network(std::initializer_list<int> list, double l) : learning_rate(l) {
     std::vector<int> sizes(list);
@@ -16,7 +18,7 @@ Network::Network(std::initializer_list<int> list, double l) : learning_rate(l) {
     }
 }
 
-VectorXd Network::getNextLayerError(const VectorXd& nextLayerError) {
+VectorXd Network::getNextLayerError(const VectorXd &nextLayerError) {
     VectorXd z = layers[1].getZ();
 
     MatrixXd weightsTranspose = layers[2].getWeights().transpose();
@@ -32,7 +34,8 @@ VectorXd Network::getNextLayerError(const VectorXd& nextLayerError) {
         .cwiseProduct(sigmoid_prime_output_layer_z);
 }
 
-void Network::back_prop(const VectorXd& input, const VectorXd& expected_output) {
+void Network::back_prop(const VectorXd &input,
+                        const VectorXd &expected_output) {
     VectorXd output = feed_forward(input);
     // deriv of output layer activation matrix w respect to C
     VectorXd errorGradient = output - expected_output;
@@ -74,7 +77,7 @@ void Network::gradient_descent() {
     }
 }
 
-VectorXd Network::feed_forward(const VectorXd& input) {
+VectorXd Network::feed_forward(const VectorXd &input) {
     return layers[2].forward(layers[1].forward(input));
 }
 
@@ -84,12 +87,12 @@ void Network::zeroGradients() {
     }
 }
 
-double Network::getUnTrainedCost(const vector<TrainingInput>& trainingData) {
+double Network::getUnTrainedCost(const vector<TrainingInput> &trainingData) {
     Eigen::VectorXd output = feed_forward(trainingData[0].input);
     return cost(output, trainingData[0].label);
 }
 
-double Network::doEpoch(const vector<TrainingInput>& trainingData) {
+double Network::doEpoch(const vector<TrainingInput> &trainingData) {
     double total_cost = 0;
     int correct_guesses = 0;
     for (int batch = 0; batch < 60000; batch += 20) {
@@ -120,7 +123,7 @@ double Network::doEpoch(const vector<TrainingInput>& trainingData) {
     return total_cost / 60000;
 }
 
-int Network::testAgainstData(const vector<TrainingInput>& testingData) {
+int Network::testAgainstData(const vector<TrainingInput> &testingData) {
     int correct_guesses = 0;
 
     for (int i = 0; i < 10000; i++) {
@@ -138,4 +141,69 @@ int Network::testAgainstData(const vector<TrainingInput>& testingData) {
         }
     }
     return correct_guesses;
+}
+
+void Network::printValues() {
+    for (size_t i = 0; i < 3; i++) {
+        std::cout << layers[i].getWeights() << std::endl;
+        std::cout << layers[i].getBiases() << std::endl;
+    }
+}
+
+
+void Network::saveToFile(const string &filename) {
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile.is_open()) {
+        std::cerr << "Error: Could not open file for saving: " << filename
+                  << std::endl;
+        return;
+    }
+
+    for (auto &layer : layers) {
+        MatrixXd weights = layer.getWeights();
+        VectorXd biases = layer.getBiases();
+
+        Eigen::Index wRows = weights.rows();
+        Eigen::Index wCols = weights.cols();
+        outFile.write(reinterpret_cast<const char *>(&wRows), sizeof(wRows));
+        outFile.write(reinterpret_cast<const char *>(&wCols), sizeof(wCols));
+        outFile.write(reinterpret_cast<const char *>(weights.data()),
+                      wRows * wCols * sizeof(double));
+
+        Eigen::Index bRows = biases.rows();
+        outFile.write(reinterpret_cast<const char *>(&bRows), sizeof(bRows));
+        outFile.write(reinterpret_cast<const char *>(biases.data()),
+                      bRows * sizeof(double));
+    }
+
+    outFile.close();
+}
+
+void Network::loadFromFile(const string &filename) {
+    std::ifstream inFile(filename, std::ios::binary);
+    if (!inFile.is_open()) {
+        std::cerr << "Error: Could not open file for loading: " << filename
+                  << std::endl;
+        return;
+    }
+
+    for (auto &layer : layers) {
+        Eigen::Index wRows, wCols, bRows;
+
+        inFile.read(reinterpret_cast<char *>(&wRows), sizeof(wRows));
+        inFile.read(reinterpret_cast<char *>(&wCols), sizeof(wCols));
+        MatrixXd weights(wRows, wCols);
+        inFile.read(reinterpret_cast<char *>(weights.data()),
+                    wRows * wCols * sizeof(double));
+
+        inFile.read(reinterpret_cast<char *>(&bRows), sizeof(bRows));
+        VectorXd biases(bRows);
+        inFile.read(reinterpret_cast<char *>(biases.data()),
+                    bRows * sizeof(double));
+
+        layer.setWeights(weights);
+        layer.setBiases(biases);
+    }
+
+    inFile.close();
 }
