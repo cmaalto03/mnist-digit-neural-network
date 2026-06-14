@@ -1,46 +1,46 @@
 #pragma once
-#include <vector>
-using namespace std;
+
+#include <Eigen/Dense>
+
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
 
 class Layer {
  public:
-    Layer(int numNeurons, int numInputs);
-    
-    // Getters returning const references for read-only access
-    const vector<vector<double>>& getWeights() const { return weights; }
-    const vector<double>& getBiases() const { return biases; }
-    const vector<double>& getA() const { return a; }
-    const vector<double>& getZ() const { return z; }
-    const vector<double>& getDelta() const { return delta; }
+    Layer(int, int);
 
-    // Non-const references allowing modification during Gradient Descent
-    vector<vector<double>>& mutWeights() { return weights; }
-    vector<double>& mutBiases() { return biases; }
+    VectorXd forward(const VectorXd&);
+    void zeroGradients();
 
-    // Caching during feedforward
-    void pushA(double aV) { a.push_back(aV); }
-    void pushZ(double aZ) { z.push_back(aZ); }
+    VectorXd getZ() { return z; }
+    VectorXd getA() { return a; }
 
-    // Setter for the complete delta vector
-    void setDelta(const vector<double>& newDelta) { 
-        delta = newDelta; 
-    }
+    VectorXd getError() { return error; }
+    void setError(const VectorXd& e) { error = e; }
 
-    // Clear caches out before every feedforward pass
-    void clearCaches() {
-        a.clear();
-        z.clear();
-        delta.clear();
-    }
+    MatrixXd getWeights() { return weights; }
+    VectorXd getBiases() { return biases; }
 
- private:
-    vector<vector<double>> weights;
-    vector<double> biases;
+    void setWeights(const MatrixXd& w) { weights = w; }
+    void setBiases(const VectorXd& b) { biases = b; }
 
-    vector<double> weightDeltas;
-    vector<double> biasesDeltas;
+    void accumulateBiasGradient(const VectorXd& biasGradient) { biasGradients += biasGradient; }
+    void accumulateWeightGradient(const MatrixXd& weightGradient) { weightGradients += weightGradient; }
 
-    vector<double> delta;
-    vector<double> a;
-    vector<double> z;
+    MatrixXd getAverageWeightGradient() { return weightGradients / 20; }
+    VectorXd getAverageBiasGradient() { return biasGradients / 20; }
+
+  private:
+    void setRandomMatrix();
+    int curr_num_neurons;
+    int prev_num_neurons;
+
+    MatrixXd weights;
+    VectorXd biases;
+    MatrixXd weightGradients;
+    VectorXd biasGradients;
+
+    VectorXd error;
+    VectorXd z;
+    VectorXd a;
 };

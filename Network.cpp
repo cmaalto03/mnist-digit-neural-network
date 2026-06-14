@@ -1,175 +1,141 @@
 #include "Network.hpp"
+#include "Layer.hpp"
 #include "utils.hpp"
-#include <cmath>
-#include <algorithm>
-#include <random>
+#include <iostream>
+#include <vector>
 
-using namespace std;
+using std::vector;
 
-Network::Network(const NetworkConfig& config) {
-    int prevSize = config.numOfInputs;
+Network::Network(std::initializer_list<int> list, double l) : learning_rate(l) {
+    std::vector<int> sizes(list);
+    int prev = 0;
 
-    for (int layerSize : config.layerSizesExcludingInputLayer) {
-        layers.push_back(Layer(layerSize, prevSize));
-        prevSize = layerSize;
+    for (size_t i = 0; i < sizes.size(); i++) {
+        layers.emplace_back(sizes[i], prev);
+        prev = sizes[i];
     }
 }
 
-vector<double> Network::feedforward(const vector<double>& inputData) {
-    vector<double> inputs = inputData;
+VectorXd Network::getNextLayerError(const VectorXd& nextLayerError) {
+    VectorXd z = layers[1].getZ();
 
-    for (size_t i = 0; i < layers.size(); i++) {
-        vector<double> newOutputs;
-        size_t numNeurons = layers[i].getBiases().size();
+    MatrixXd weightsTranspose = layers[2].getWeights().transpose();
 
-        for (size_t j = 0; j < numNeurons; j++) {
-            double z = 0.0;
-            size_t numInputs = inputs.size();
+    size_t numZ = z.size();
+    VectorXd sigmoid_prime_output_layer_z(z.size());
 
-            for (size_t k = 0; k < numInputs; k++) {
-                z += layers[i].getWeights()[j][k] * inputs[k];
-            }
-
-            z += layers[i].getBiases()[j];
-
-            layers[i].pushZ(z);
-            double a = sigmoid(z);
-            layers[i].pushA(a);
-            newOutputs.push_back(a);
-        }
-        inputs = newOutputs;
+    for (size_t i = 0; i < numZ; i++) {
+        sigmoid_prime_output_layer_z(i) = sigmoid_prime(z(i));
     }
-    return inputs;
+
+    return (weightsTranspose * nextLayerError)
+        .cwiseProduct(sigmoid_prime_output_layer_z);
 }
 
-void Network::trainEpoch(const vector<TrainingInput>& trainingData, int batchSize, double learningRate) {
-    size_t numLayers = layers.size();
-    if (numLayers == 0) return;
+void Network::back_prop(const VectorXd& input, const VectorXd& expected_output) {
+    VectorXd output = feed_forward(input);
+    // deriv of output layer activation matrix w respect to C
+    VectorXd errorGradient = output - expected_output;
+    VectorXd z = layers[2].getZ();
 
-    // Track array indices to cleanly shuffle your 60k dataset
-    vector<size_t> indices(trainingData.size());
-    for (size_t i = 0; i < indices.size(); ++i) indices[i] = i;
-    
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(indices.begin(), indices.end(), g);
+    size_t numZ = z.size();
+    VectorXd sigmoid_prime_output_layer_z(z.size());
 
-    // Mini-batch gradient accumulators
-    vector<vector<double>> batchBiasGrads(numLayers);
-    vector<vector<vector<double>>> batchWeightGrads(numLayers);
+    for (size_t i = 0; i < numZ; i++) {
+        sigmoid_prime_output_layer_z(i) = sigmoid_prime(z(i));
+    }
 
-    auto resetBatchGradients = [&]() {
-        for (size_t i = 0; i < numLayers; i++) {
-            size_t numNeurons = layers[i].getBiases().size();
-            size_t numInputs = layers[i].getWeights()[0].size();
+    VectorXd output_layer_error =
+        errorGradient.cwiseProduct(sigmoid_prime_output_layer_z);
+    layers[2].setError(output_layer_error);
 
-            batchBiasGrads[i].assign(numNeurons, 0.0);
-            batchWeightGrads[i].assign(numNeurons, vector<double>(numInputs, 0.0));
-        }
-    };
+    layers[2].accumulateBiasGradient(output_layer_error);
+    layers[2].accumulateWeightGradient(
+        (layers[2].getError() * layers[1].getA().transpose()));
+    layers[1].setError(getNextLayerError(output_layer_error));
+    layers[1].accumulateBiasGradient(layers[1].getError());
+    layers[1].accumulateWeightGradient(layers[1].getError() *
+                                       input.transpose());
+}
 
-    resetBatchGradients();
-    int imagesInCurrentBatch = 0;
+void Network::gradient_descent() {
+    size_t network_size = 3;
 
-    for (size_t idx : indices) {
-        const auto& input = trainingData[idx].image_data;
-        const auto& expected = trainingData[idx].labelOneHotEncoding;
+    // dont wanna mess around w the input layer, start at 1
+    for (size_t i = 1; i < network_size; i++) {
+        MatrixXd weightGradients = layers[i].getAverageWeightGradient();
+        MatrixXd weights = layers[i].getWeights();
 
-        // 1. Forward Pass
-        for (size_t i = 0; i < layers.size(); i++) {
-            layers[i].clearCaches();
-        }
-        vector<double> output = feedforward(input);
+        layers[i].setWeights(weights - learning_rate * weightGradients);
+        VectorXd biasGradients = layers[i].getAverageBiasGradient();
+        VectorXd biases = layers[i].getBiases();
 
-        // 2. Backward Pass (BP1 & BP2)
-        vector<vector<double>> singleBiasGrads(numLayers);
-        vector<vector<vector<double>>> singleWeightGrads(numLayers);
-
-        for (int i = numLayers - 1; i >= 0; i--) {
-            Layer& currentLayer = layers[i];
-            const vector<double>& zValues = currentLayer.getZ();
-            vector<double> prevActivations = (i == 0) ? input : layers[i - 1].getA();
-            vector<double> currentDelta;
-
-            if (i == numLayers - 1) {
-                // BP1 Matrix Calculus
-                currentDelta.reserve(output.size());
-                for (size_t j = 0; j < output.size(); j++) {
-                    double grad_C = output[j] - expected[j]; 
-                    currentDelta.push_back(grad_C * sigmoid_prime(zValues[j]));              
-                }
-            } else {
-                // BP2 Backpropagation Step
-                Layer& nextLayer = layers[i + 1];
-                const vector<double>& nextDelta = nextLayer.getDelta();
-                const vector<vector<double>>& nextWeights = nextLayer.getWeights();
-                currentDelta.resize(zValues.size(), 0.0);
-
-                for (size_t j = 0; j < zValues.size(); j++) {
-                    double errorSum = 0.0;
-                    for (size_t k = 0; k < nextDelta.size(); k++) {
-                        errorSum += nextWeights[k][j] * nextDelta[k];
-                    }
-                    currentDelta[j] = errorSum * sigmoid_prime(zValues[j]);
-                }
-            }
-
-            currentLayer.setDelta(currentDelta);
-            singleBiasGrads[i] = currentDelta;
-
-            // BP4 Weight Gradient Multipliers
-            singleWeightGrads[i].resize(currentDelta.size(), vector<double>(prevActivations.size()));
-            for (size_t j = 0; j < currentDelta.size(); j++) {
-                for (size_t k = 0; k < prevActivations.size(); k++) {
-                    singleWeightGrads[i][j][k] = currentDelta[j] * prevActivations[k];
-                }
-            }
-        }
-
-        // Accumulate single image gradients into mini-batch buckets
-        for (size_t i = 0; i < numLayers; i++) {
-            for (size_t j = 0; j < batchBiasGrads[i].size(); j++) {
-                batchBiasGrads[i][j] += singleBiasGrads[i][j];
-                for (size_t k = 0; k < batchWeightGrads[i][j].size(); k++) {
-                    batchWeightGrads[i][j][k] += singleWeightGrads[i][j][k];
-                }
-            }
-        }
-
-        imagesInCurrentBatch++;
-
-        // 3. Mini-batch complete -> Apply parameters adjustment loop
-        if (imagesInCurrentBatch == batchSize) {
-            for (size_t i = 0; i < numLayers; i++) {
-                auto& layerBiases = layers[i].mutBiases();
-                auto& layerWeights = layers[i].mutWeights();
-
-                for (size_t j = 0; j < layerBiases.size(); j++) {
-                    layerBiases[j] -= (learningRate / batchSize) * batchBiasGrads[i][j];
-                }
-
-                for (size_t j = 0; j < layerWeights.size(); j++) {
-                    for (size_t k = 0; k < layerWeights[j].size(); k++) {
-                        layerWeights[j][k] -= (learningRate / batchSize) * batchWeightGrads[i][j][k];
-                    }
-                }
-            }
-            resetBatchGradients();
-            imagesInCurrentBatch = 0;
-        }
+        layers[i].setBiases(biases - learning_rate * biasGradients);
     }
 }
 
-// Deprecated or isolated single execution wrapper for test hooks
-void Network::backprop(const vector<double>& input, const vector<double>& expected) {
-    // Left empty or fallback mapping to a standalone step if needed elsewhere
+VectorXd Network::feed_forward(const VectorXd& input) {
+    return layers[2].forward(layers[1].forward(input));
 }
 
-double Network::getQuadraticCost(const vector<double>& output, const vector<double>& expected) {
-    size_t totalSize = output.size();
-    double sum = 0;
-    for (size_t i = 0; i < totalSize; i++) {
-        sum += pow((expected[i] - output[i]), 2);
+void Network::zeroGradients() {
+    for (size_t i = 1; i < layers.size(); i++) {
+        layers[i].zeroGradients();
     }
-    return sum / 2;
+}
+
+double Network::getUnTrainedCost(const vector<TrainingInput>& trainingData) {
+    Eigen::VectorXd output = feed_forward(trainingData[0].input);
+    return cost(output, trainingData[0].label);
+}
+
+double Network::doEpoch(const vector<TrainingInput>& trainingData) {
+    double total_cost = 0;
+    int correct_guesses = 0;
+    for (int batch = 0; batch < 60000; batch += 20) {
+        // mini batch
+        for (int i = 0; i < 20; i++) {
+            int index = batch + i;
+            back_prop(trainingData[index].input, trainingData[index].label);
+            Eigen::VectorXd output = feed_forward(trainingData[index].input);
+
+            Eigen::Index predicted_label;
+            output.maxCoeff(&predicted_label);
+
+            Eigen::Index actual_label;
+            trainingData[index].label.maxCoeff(&actual_label);
+
+            if (predicted_label == actual_label) {
+                correct_guesses++;
+            }
+
+            total_cost += cost(output, trainingData[index].label);
+        }
+        gradient_descent();
+
+        zeroGradients();
+    }
+
+    std::cout << correct_guesses << std::endl;
+    return total_cost / 60000;
+}
+
+int Network::testAgainstData(const vector<TrainingInput>& testingData) {
+    int correct_guesses = 0;
+
+    for (int i = 0; i < 10000; i++) {
+
+        Eigen::VectorXd output = feed_forward(testingData[i].input);
+
+        Eigen::Index predicted_label;
+        output.maxCoeff(&predicted_label);
+
+        Eigen::Index actual_label;
+        testingData[i].label.maxCoeff(&actual_label);
+
+        if (predicted_label == actual_label) {
+            correct_guesses++;
+        }
+    }
+    return correct_guesses;
 }

@@ -1,30 +1,35 @@
-#pragma once
-
-#include <vector>
-#include <cmath>
-#include <random>
-
 #include "Layer.hpp"
 #include "TrainingInput.hpp"
 
-using namespace std;
+#include <Eigen/Dense>
+#include <initializer_list>
+#include <vector>
 
-struct NetworkConfig {
-    int numOfInputs;
-    vector<int> layerSizesExcludingInputLayer;
-    double learningRate = 0;
-};
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
+using std::initializer_list;
+using std::vector;
 
 class Network {
- public:
-    Network(const NetworkConfig& config);
-    double getQuadraticCost(const vector<double>&, const vector<double>&);
-    vector<double> feedforward(const vector<double>& inputData);
-    void backprop(const vector<double>& input, const vector<double>& expected);
-    
-    // Added for Mini-Batch Stochastic Gradient Descent over full epoch
-    void trainEpoch(const vector<TrainingInput>& trainingData, int batchSize, double learningRate);
+  public:
+    Network(std::initializer_list<int>, double);
+    static inline float LEARNING_RATE = 0.001;
 
- private:
+    double doEpoch(const vector<TrainingInput>&);
+    double getUnTrainedCost(const vector<TrainingInput>&);
+
+    int testAgainstData(const vector<TrainingInput>&);
+
+    void printValues();
+
+
+  private:
     vector<Layer> layers;
+    double learning_rate;
+
+    VectorXd getNextLayerError(const VectorXd& nextLayerError);
+    VectorXd feed_forward(const VectorXd& input);
+    void back_prop(const VectorXd& input, const VectorXd& expected_output);
+    void gradient_descent();
+    void zeroGradients();
 };
